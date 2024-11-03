@@ -5,7 +5,9 @@ your api key in plain text in your script in case you choose to share it and to 
 accidentally leaking it.
 
 Once you have set your api key you may have to restart before mIRC can actually see it with
-$envvar()
+$envvar(OPENAI_API_KEY)
+
+please see here on how to set your environment variable: https://platform.openai.com/docs/quickstart/step-2-set-up-your-api-key
 */
 
 on *:START:{
