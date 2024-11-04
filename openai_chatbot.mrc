@@ -140,7 +140,7 @@ Here is a basic socket bot
 
 */
 alias gpt_sockbot {
-  if ($sock(sockbot)) {
+  if ($sock(sockbot*)) {
     sockclose sockbot*
   }
   window -ek @GPT_Sockbot
