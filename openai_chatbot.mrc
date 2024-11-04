@@ -12,7 +12,7 @@ please see here on how to set your environment variable: https://platform.openai
 The bot is set to remember as far back as the last 20 interactions. this includes responses from the bot.
 setting the %context_window_size variable to a higher number will allow the bot to remember more interactions but will burn through tokens faster as the conversation grows
 
-Version 1.1
+Version 1.101
 */
 
 menu * {
@@ -32,11 +32,11 @@ on *:START:{
 }
 
 alias reset_system_role {
-  write -c system_role.txt $chr(123) $+ "role": "system","content": "You are a creative and helpful host in an IRC chatroom. You will not constantly ask if there is anything else you can help with. it gets repetitive and annoying to the users. When a chat user talks to you, you can follow the conversation and respond accordingly. When users leave the room, most of the time you say exactly this: Goodbye. Every now and then you will instead say a short but funny quippy goodbye. When a user joins the room you must greet them with something funny. You will keep track of who is currently in the room as users join and part." $+ $chr(125)
+  write -c $mircdir $+ system_role.txt $chr(123) $+ "role": "system","content": "You are a creative and helpful host in an IRC chatroom. You will not constantly ask if there is anything else you can help with. it gets repetitive and annoying to the users. When a chat user talks to you, you can follow the conversation and respond accordingly. When users leave the room, most of the time you say exactly this: Goodbye. Every now and then you will instead say a short but funny quippy goodbye. When a user joins the room you must greet them with something funny. You will keep track of who is currently in the room as users join and part." $+ $chr(125)
 }
 
 alias reset_context_window {
-  write -c context_window.txt 
+  write -c $mircdir $+ context_window.txt 
 }
 
 alias openai_api_request {
@@ -46,7 +46,7 @@ alias openai_api_request {
   ;append our latest request to our context window file  
   ; Clean up some of the contents
    var %content = $replace($1-, $chr(1), $null, $chr(34), \ $+ $chr(34))
-  write context_window.txt $chr(123) $+ "role": "user", "content": " $+ %content $+ " $+ $chr(125)
+  write $mircdir $+ context_window.txt $chr(123) $+ "role": "user", "content": " $+ %content $+ " $+ $chr(125)
 
   ; Build the context window string from the system_role.txt and context_window.txt files
   ; First we read the system_role.txt file and store the content in %context_window
@@ -119,7 +119,7 @@ alias onRequestComplete {
   var %response_message $regml(response_message,1)
 
   ; Add the assistant's response to the context_window file
-  write context_window.txt $chr(123) $+ "role": "assistant", "content": " $+ %response_message $+ " $+ $chr(125)
+  write $mircdir $+ context_window.txt $chr(123) $+ "role": "assistant", "content": " $+ %response_message $+ " $+ $chr(125)
 
   ; Send the response message to the chatroom
   if ($sock(sockbot)) {
