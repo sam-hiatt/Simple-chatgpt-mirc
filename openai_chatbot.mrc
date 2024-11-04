@@ -141,10 +141,26 @@ Here is a basic socket bot
 */
 alias gpt_sockbot {
   if ($sock(sockbot)) {
-    sockclose sockbot
+    sockclose sockbot*
   }
   window -ek @GPT_Sockbot
+  socklisten -n sockbot.listener 7272
+  server -m localhost 7272
+}
+
+on *:socklisten:sockbot.listener: {
+  sockaccept sockbot.local  
   sockopen sockbot chat.koach.com 6667
+}
+
+on *:sockread:sockbot.local: {
+  sockread -tn %data
+  tokenize 32 %data
+  echo @GPT_Sockbot Local Server: $1-
+
+  if ($sock(sockbot)) {
+    sockwrite -n sockbot $1-
+  }
 }
 
 on *:sockopen:sockbot: {
@@ -160,11 +176,12 @@ on *:sockread:sockbot: {
 
   echo @GPT_Sockbot IRC Server: %data
 
+sockwrite -n sockbot.local $1-
 
   ; Respond to PING
   if ($1 == PING) {
     ; Respond to the PING command with a PONG command
-    sockwrite -n $sockname PONG $gettok(%data,2,32)
+   ; sockwrite -n $sockname PONG $gettok(%data,2,32)
   }
 
   ; Check if the data contains the MOTD
