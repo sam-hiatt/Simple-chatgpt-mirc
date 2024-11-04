@@ -5,12 +5,29 @@ your api key in plain text in your script in case you choose to share it and to 
 accidentally leaking it.
 
 Once you have set your api key you may have to restart before mIRC can actually see it with
-$envvar()
+$envvar(OPENAI_API_KEY)
+
+please see here on how to set your environment variable: https://platform.openai.com/docs/quickstart/step-2-set-up-your-api-key
+
+The bot is set to remember as far back as the last 20 interactions. this includes responses from the bot.
+setting the %context_window_size variable to a higher number will allow the bot to remember more interactions but will burn through tokens faster as the conversation grows
+
+Version 1.1
 */
+
+menu * {
+  OpenAI Chatbot
+  .Start/Restart Chatbot: gpt_sockbot
+  .Reset Context Window: reset_context_window
+  .Set Chatroom: set %chatroom $input(Chatroom:,eo,Chatroom,%chatroom)
+  .Set Bot Nick: set %botnick $input(Bot Nick:,eo,BotNick,%botnick)
+  .Set Context Window Size: set %context_window_size $input(Context Window Size:,eo,Context Window Size,%context_window_size)
+}
 
 on *:START:{
   set %chatroom #chatbot
   set %botnick BanterBot
+  set %context_window_size 20
   reset_system_role
 }
 
@@ -26,8 +43,10 @@ alias openai_api_request {
   ; Define the URL for the OpenAI API
   var %url = https://api.openai.com/v1/chat/completions
 
-  ;append our latest request to our context window file
-  write context_window.txt $chr(123) $+ "role": "user", "content": " $+ $1- $+ " $+ $chr(125)
+  ;append our latest request to our context window file  
+  ; Clean up some of the contents
+   var %content = $replace($1-, $chr(1), $null, $chr(34), \ $+ $chr(34))
+  write context_window.txt $chr(123) $+ "role": "user", "content": " $+ %content $+ " $+ $chr(125)
 
   ; Build the context window string from the system_role.txt and context_window.txt files
   ; First we read the system_role.txt file and store the content in %context_window
@@ -39,8 +58,8 @@ alias openai_api_request {
   ; If there are 50 or more lines we only load the last 50 lines and append them to the %context_window variable
   ; Otherwise we load all the lines in the file and append them to the %context_window variable
 
-  if (%sizeof_context_window >= 50) {
-    var %i = %sizeof_context_window - 49
+  if (%sizeof_context_window >= %context_window_size) {
+    var %i = $calc(%sizeof_context_window - (%context_window_size - 1))
   }
   else {
 
@@ -75,6 +94,7 @@ alias openai_api_request {
   bset -t &body -1 "temperature": 0.7
   bset -t &body -1 $chr(125)
 
+  ;echo -g @GPT_Sockbot 4 context being sent: $bvar(&body,1-).text
   ; Make the POST request using urlget
   var %id = $urlget(%url,pb,&response,onRequestComplete,&headers,&body)
 
@@ -95,8 +115,6 @@ alias onRequestComplete {
   ;echo -ag $bvar(&response,1-).text
   noop $regex(response_message,$bvar(&response,1-).text,/"content":\s*"(.*?)(?=",\s*"refusal":)"/i)
 
-
-  echo @GPT_Sockbot 4 Full Response from OpenAI: $bvar(&response,1-).text
   ; Store the response message in a variable
   var %response_message $regml(response_message,1)
 
@@ -106,8 +124,8 @@ alias onRequestComplete {
   ; Send the response message to the chatroom
   if ($sock(sockbot)) {
     ; Parse \n to send multiple PRIVMSG messages
-    %response_message = $replace(%response_message, \n, $chr(10), \", ")
-
+    %response_message = $replace(%response_message, \n, $chr(10))
+    
     var %i = 1
     var %lines = $numtok(%response_message, 10)
     while (%i <= %lines) {
@@ -116,7 +134,7 @@ alias onRequestComplete {
       inc %i
     }
   }
-
+  
 }
 
 
@@ -127,10 +145,26 @@ Here is a basic socket bot
 */
 alias gpt_sockbot {
   if ($sock(sockbot)) {
-    sockclose sockbot
+    sockclose sockbot*
   }
   window -ek @GPT_Sockbot
+  socklisten -n sockbot.listener 7272
+  server -m localhost 7272
+}
+
+on *:socklisten:sockbot.listener: {
+  sockaccept sockbot.local  
   sockopen sockbot chat.koach.com 6667
+}
+
+on *:sockread:sockbot.local: {
+  sockread -tn %data
+  tokenize 32 %data
+  echo @GPT_Sockbot Local Server: $1-
+
+  if ($sock(sockbot)) {
+    sockwrite -n sockbot $1-
+  }
 }
 
 on *:sockopen:sockbot: {
@@ -146,11 +180,12 @@ on *:sockread:sockbot: {
 
   echo @GPT_Sockbot IRC Server: %data
 
+sockwrite -n sockbot.local $1-
 
   ; Respond to PING
   if ($1 == PING) {
     ; Respond to the PING command with a PONG command
-    sockwrite -n $sockname PONG $gettok(%data,2,32)
+   ; sockwrite -n $sockname PONG $gettok(%data,2,32)
   }
 
   ; Check if the data contains the MOTD
