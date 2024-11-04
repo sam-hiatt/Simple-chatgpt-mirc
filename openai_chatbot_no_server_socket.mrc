@@ -42,7 +42,9 @@ alias openai_api_request {
   var %url = https://api.openai.com/v1/chat/completions
 
   ;append our latest request to our context window file
-  write context_window.txt $chr(123) $+ "role": "user", "content": " $+ $1- $+ " $+ $chr(125)
+  ; Clean up some of the contents
+   var %content = $replace($1-, $chr(1), $null, $chr(34), \ $+ $chr(34))
+  write context_window.txt $chr(123) $+ "role": "user", "content": " $+ %content $+ " $+ $chr(125)
 
   ; Build the context window string from the system_role.txt and context_window.txt files
   ; First we read the system_role.txt file and store the content in %context_window
@@ -109,18 +111,19 @@ alias onRequestComplete {
   }
   ; Retrieve the response message from the &binvar
   ;echo -ag $bvar(&response,1-).text
-  noop $regex(response_message,$bvar(&response,1-).text,/"content":\s*"(.*?)"/i)
+  noop $regex(response_message,$bvar(&response,1-).text,/"content":\s*"(.*?)(?=",\s*"refusal":)"/i)
 
+  echo @GPT_Sockbot 4 Full Response from OpenAI: $bvar(&response,1-).text
   ; Store the response message in a variable
   var %response_message $regml(response_message,1)
-
+  echo @GPT_Sockbot 4 Response from OpenAI: %response_message
   ; Add the assistant's response to the context_window file
   write context_window.txt $chr(123) $+ "role": "assistant", "content": " $+ %response_message $+ " $+ $chr(125)
 
   ; Send the response message to the chatroom
   if ($sock(sockbot)) {
     ; Parse \n to send multiple PRIVMSG messages
-    %response_message = $replace(%response_message, \n, $chr(10))
+    %response_message = $replace(%response_message, \n, $chr(10), \", ")
     
     var %i = 1
     var %lines = $numtok(%response_message, 10)
@@ -178,8 +181,7 @@ on *:sockread:sockbot: {
     var %sender = $right($gettok($gettok($1,1,32),1,33),-1)
     var %content = $gettok($3-,2-,58)
 
-    ; Clean up some of the contents
-    %content = $replace(%content, $chr(1), $null, $chr(34), \ $+ $chr(34))
+    
     
     if (* $+ %botnick $+ * iswm $3-) {
       ; Send the message to the OpenAI API
