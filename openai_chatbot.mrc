@@ -8,11 +8,15 @@ Once you have set your api key you may have to restart before mIRC can actually 
 $envvar(OPENAI_API_KEY)
 
 please see here on how to set your environment variable: https://platform.openai.com/docs/quickstart/step-2-set-up-your-api-key
+
+The bot is set to remember as far back as the last 20 interactions. this includes responses from the bot.
+setting the %context_window_size variable to a higher number will allow the bot to remember more interactions but will burn through tokens faster as the conversation grows
 */
 
 on *:START:{
   set %chatroom #chatbot
   set %botnick BanterBot
+  set %context_window_size 20
   reset_system_role
 }
 
@@ -41,8 +45,8 @@ alias openai_api_request {
   ; If there are 50 or more lines we only load the last 50 lines and append them to the %context_window variable
   ; Otherwise we load all the lines in the file and append them to the %context_window variable
 
-  if (%sizeof_context_window >= 50) {
-    var %i = %sizeof_context_window - 49
+  if (%sizeof_context_window >= %context_window_size) {
+    var %i = $calc(%sizeof_context_window - (%context_window_size - 1))
   }
   else {
 
@@ -77,6 +81,7 @@ alias openai_api_request {
   bset -t &body -1 "temperature": 0.7
   bset -t &body -1 $chr(125)
 
+  ;echo -g @GPT_Sockbot 4 context being sent: $bvar(&body,1-).text
   ; Make the POST request using urlget
   var %id = $urlget(%url,pb,&response,onRequestComplete,&headers,&body)
 
