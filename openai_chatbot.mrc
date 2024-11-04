@@ -93,8 +93,10 @@ alias onRequestComplete {
   }
   ; Retrieve the response message from the &binvar
   ;echo -ag $bvar(&response,1-).text
-  noop $regex(response_message,$bvar(&response,1-).text,/"content":\s*"(.*?)"/i)
+  noop $regex(response_message,$bvar(&response,1-).text,/"content":\s*"(.*?)(?=",\s*"refusal":)"/i)
 
+
+  echo @GPT_Sockbot 4 Full Response from OpenAI: $bvar(&response,1-).text
   ; Store the response message in a variable
   var %response_message $regml(response_message,1)
 
@@ -104,7 +106,7 @@ alias onRequestComplete {
   ; Send the response message to the chatroom
   if ($sock(sockbot)) {
     ; Parse \n to send multiple PRIVMSG messages
-    %response_message = $replace(%response_message, \n, $chr(10))
+    %response_message = $replace(%response_message, \n, $chr(10), \", ")
 
     var %i = 1
     var %lines = $numtok(%response_message, 10)
@@ -162,9 +164,6 @@ on *:sockread:sockbot: {
     ; Parse the message and extract the sender and content
     var %sender = $right($gettok($gettok($1,1,32),1,33),-1)
     var %content = $gettok($3-,2-,58)
-
-    ; Clean up some of the contents
-    %content = $replace(%content, $chr(1), $null, $chr(34), \ $+ $chr(34))
 
     if (* $+ %botnick $+ * iswm $3-) {
       ; Send the message to the OpenAI API
