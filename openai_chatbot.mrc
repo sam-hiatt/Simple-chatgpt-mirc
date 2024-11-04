@@ -13,6 +13,15 @@ The bot is set to remember as far back as the last 20 interactions. this include
 setting the %context_window_size variable to a higher number will allow the bot to remember more interactions but will burn through tokens faster as the conversation grows
 */
 
+menu * {
+  OpenAI Chatbot
+  .Start/Restart Chatbot: gpt_sockbot
+  .Reset Context Window: reset_context_window
+  .Set Chatroom: set %chatroom $input(Chatroom:,eo,Chatroom,%chatroom)
+  .Set Bot Nick: set %botnick $input(Bot Nick:,eo,BotNick,%botnick)
+  .Set Context Window Size: set %context_window_size $input(Context Window Size:,eo,Context Window Size,%context_window_size)
+}
+
 on *:START:{
   set %chatroom #chatbot
   set %botnick BanterBot
