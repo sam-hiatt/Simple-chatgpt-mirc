@@ -12,7 +12,7 @@ please see here on how to set your environment variable: https://platform.openai
 The bot is set to remember as far back as the last 20 interactions. this includes responses from the bot.
 setting the %context_window_size variable to a higher number will allow the bot to remember more interactions but will burn through tokens faster as the conversation grows
 
-Version 1.101
+Version 1.102
 */
 
 menu * {
@@ -144,7 +144,7 @@ Here is a basic socket bot
 
 */
 alias gpt_sockbot {
-  if ($sock(sockbot)) {
+  if ($sock(sockbot*)) {
     sockclose sockbot*
   }
   window -ek @GPT_Sockbot
