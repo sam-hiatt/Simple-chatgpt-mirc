@@ -12,7 +12,7 @@ please see here on how to set your environment variable: https://platform.openai
 The bot is set to remember as far back as the last 20 interactions. this includes responses from the bot.
 setting the %context_window_size variable to a higher number will allow the bot to remember more interactions but will burn through tokens faster as the conversation grows
 
-Version 1.113
+Version 1.213
 */
 
 menu * {
@@ -23,6 +23,7 @@ menu * {
   .Set Bot Nick: set %botnick $input(Bot Nick:,eo,BotNick,%botnick)
   .Set Context Window Size: set %context_window_size $input(Context Window Size:,eo,Context Window Size,%context_window_size)
   .$style(%server_mode) Enable Server Window: set %server_mode $calc(1 - %server_mode)
+  .$style(%debug) Enable Debug Mode: set %debug $calc(1 - %debug) | debug_output $iif(%debug,enabled,disabled) | debug_output 4 Debug Mode: $iif(%debug,Enabled,Disabled)
 }
 
 on *:START:{
@@ -30,6 +31,8 @@ on *:START:{
   set %botnick BanterBot
   set %context_window_size 20
   set %server_mode 0
+  set %debug 0
+  window -ekh @GPT_Sockbot
   reset_system_role
 }
 
@@ -39,6 +42,30 @@ alias reset_system_role {
 
 alias reset_context_window {
   write -c $mircdir $+ context_window.txt 
+}
+
+alias debug_output {  
+    if ($1 == disabled) {
+      window -h @GPT_Sockbot
+    } 
+    elseif ($1 == enabled) {
+    }
+    else {      
+      if (%debug) {    
+        ; If the window is hidden then show it
+        if ($window(@GPT_Sockbot).state == hidden) {
+          window -w3 @GPT_Sockbot
+        }
+
+        ; If the window does not exist then create it
+        if (!$window(@GPT_Sockbot)) {
+          window -ek @GPT_Sockbot
+        }
+
+        ; Output the message to the debug window
+        echo $1 @GPT_Sockbot $2-
+      }
+  }
 }
 
 alias openai_api_request {
@@ -96,13 +123,12 @@ alias openai_api_request {
   bset -t &body -1 "temperature": 0.7
   bset -t &body -1 $chr(125)
 
-  ;echo -g @GPT_Sockbot 4 context being sent: $bvar(&body,1-).text
   ; Make the POST request using urlget
   var %id = $urlget(%url,pb,&response,onRequestComplete,&headers,&body)
 
   ; Check if the call failed
   if (%id == 0) {
-    echo -a Error: Failed to initiate the HTTP request
+    debug_output 4 Error: Failed to initiate the HTTP request to the OpenAI API
   }
 }
 
@@ -110,18 +136,20 @@ alias openai_api_request {
 alias onRequestComplete {
   var %id = $1
   if ($urlget(%id).error) {
-    echo -a Error: $urlget(%id).error
+    debug_output 4 URL Get Error: $urlget(%id).error
     return
   }
   ; Retrieve the response message from the &binvar
-  ;echo -ag $bvar(&response,1-).text
+  debug_output 53 OpenAI API Response ->1 $bvar(&response,1-).text
   noop $regex(response_message,$bvar(&response,1-).text,/"content":\s*"(.*?)(?=",\s*"refusal":)"/i)
 
   ; Store the response message in a variable
-  var %response_message $regml(response_message,1)
+  var %response_message $replace($regml(response_message,1), \", ")
+
+  debug_output 53 OpenAI API Extracted Response ->1 %response_message
 
   ; Add the assistant's response to the context_window file
-  write $mircdir $+ context_window.txt $chr(123) $+ "role": "assistant", "content": " $+ %response_message $+ " $+ $chr(125)
+  write $mircdir $+ context_window.txt $chr(123) $+ "role": "assistant", "content": " $+ $replace(%response_message, ", \") $+ " $+ $chr(125)
 
   ; Send the response message to the chatroom
   if ($sock(sockbot)) {
@@ -189,7 +217,7 @@ on *:sockread:sockbot: {
   sockread -tn %data
   tokenize 32 %data
 
-  echo @GPT_Sockbot IRC Server: %data
+  debug_output 3 IRC Server -> %data
 
 
 if (%server_mode) {
@@ -200,6 +228,7 @@ sockwrite -n sockbot.local $1-
   if ($1 == PING) {
     ; Respond to the PING command with a PONG command
     sockwrite -n $sockname PONG $2-
+    debug_output 60 IRC Server <- PONG $2-
   }
 }
 
@@ -217,7 +246,7 @@ sockwrite -n sockbot.local $1-
 
     if (* $+ %botnick $+ * iswm $3-) {
       ; Send the message to the OpenAI API
-      echo @GPT_Sockbot 4 Sending message to OpenAI API: %sender $+ : %content
+      debug_output 53 Sending message to OpenAI API <- 1 %sender $+ : %content
       $openai_api_request(%sender $+ : %content)
     }
   }
