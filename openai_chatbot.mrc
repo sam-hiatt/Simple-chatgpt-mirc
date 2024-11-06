@@ -49,6 +49,7 @@ alias debug_output {
       window -h @GPT_Sockbot
     } 
     elseif ($1 == enabled) {
+      noop
     }
     else {      
       if (%debug) {    
