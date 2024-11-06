@@ -199,7 +199,7 @@ sockwrite -n sockbot.local $1-
     ; Respond to PING
   if ($1 == PING) {
     ; Respond to the PING command with a PONG command
-    sockwrite -n $sockname PONG $gettok(%data,2,32)
+    sockwrite -n $sockname PONG $2-
   }
 }
 
