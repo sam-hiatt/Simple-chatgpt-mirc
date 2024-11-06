@@ -12,7 +12,7 @@ please see here on how to set your environment variable: https://platform.openai
 The bot is set to remember as far back as the last 20 interactions. this includes responses from the bot.
 setting the %context_window_size variable to a higher number will allow the bot to remember more interactions but will burn through tokens faster as the conversation grows
 
-Version 1.112
+Version 1.113
 */
 
 menu * {
@@ -195,12 +195,12 @@ on *:sockread:sockbot: {
 if (%server_mode) {
 
 sockwrite -n sockbot.local $1-
-  ; Respond to PING
+} else {
+    ; Respond to PING
   if ($1 == PING) {
     ; Respond to the PING command with a PONG command
     sockwrite -n $sockname PONG $gettok(%data,2,32)
   }
-
 }
 
   ; Check if the data contains the MOTD
