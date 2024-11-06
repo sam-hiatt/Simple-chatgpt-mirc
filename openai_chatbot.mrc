@@ -12,7 +12,7 @@ please see here on how to set your environment variable: https://platform.openai
 The bot is set to remember as far back as the last 20 interactions. this includes responses from the bot.
 setting the %context_window_size variable to a higher number will allow the bot to remember more interactions but will burn through tokens faster as the conversation grows
 
-Version 1.102
+Version 1.112
 */
 
 menu * {
@@ -22,12 +22,14 @@ menu * {
   .Set Chatroom: set %chatroom $input(Chatroom:,eo,Chatroom,%chatroom)
   .Set Bot Nick: set %botnick $input(Bot Nick:,eo,BotNick,%botnick)
   .Set Context Window Size: set %context_window_size $input(Context Window Size:,eo,Context Window Size,%context_window_size)
+  .$style(%server_mode) Enable Server Window: set %server_mode $calc(1 - %server_mode)
 }
 
 on *:START:{
   set %chatroom #chatbot
   set %botnick BanterBot
   set %context_window_size 20
+  set %server_mode 0
   reset_system_role
 }
 
@@ -89,7 +91,7 @@ alias openai_api_request {
   bset -t &body -1 "messages": %context_window $+ ,
   bset -t &body -1 "max_tokens": 1000,
   bset -t &body -1 "top_p": 1,
-  bset -t &body -1 "frequency_penalty": 0.5,
+  bset -t &body -1 "frequency_penalty": 2,
   bset -t &body -1 "presence_penalty": 1.0,
   bset -t &body -1 "temperature": 0.7
   bset -t &body -1 $chr(125)
@@ -144,12 +146,21 @@ Here is a basic socket bot
 
 */
 alias gpt_sockbot {
+  
+  window -ek @GPT_Sockbot
+
   if ($sock(sockbot*)) {
     sockclose sockbot*
   }
-  window -ek @GPT_Sockbot
-  socklisten -n sockbot.listener 7272
-  server -m localhost 7272
+
+  if (%server_mode) {
+    socklisten -n sockbot.listener 7272
+    server -m localhost 7272
+  }
+  else {
+    sockopen sockbot chat.koach.com 6667
+  }
+
 }
 
 on *:socklisten:sockbot.listener: {
@@ -180,13 +191,17 @@ on *:sockread:sockbot: {
 
   echo @GPT_Sockbot IRC Server: %data
 
-sockwrite -n sockbot.local $1-
 
+if (%server_mode) {
+
+sockwrite -n sockbot.local $1-
   ; Respond to PING
   if ($1 == PING) {
     ; Respond to the PING command with a PONG command
-   ; sockwrite -n $sockname PONG $gettok(%data,2,32)
+    sockwrite -n $sockname PONG $gettok(%data,2,32)
   }
+
+}
 
   ; Check if the data contains the MOTD
   if ($2 == 376) {
