@@ -223,7 +223,8 @@ on *:sockread:sockbot: {
 if (%server_mode) {
 
 sockwrite -n sockbot.local $1-
-} else {
+} 
+else {
     ; Respond to PING
   if ($1 == PING) {
     ; Respond to the PING command with a PONG command
