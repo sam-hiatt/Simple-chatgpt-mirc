@@ -37,11 +37,11 @@ on *:START:{
 }
 
 alias reset_system_role {
-  write -c $mircdir $+ system_role.txt $chr(123) $+ "role": "system","content": "You are a creative and helpful host in an IRC chatroom. You will not constantly ask if there is anything else you can help with. it gets repetitive and annoying to the users. When a chat user talks to you, you can follow the conversation and respond accordingly. When users leave the room, most of the time you say exactly this: Goodbye. Every now and then you will instead say a short but funny quippy goodbye. When a user joins the room you must greet them with something funny. You will keep track of who is currently in the room as users join and part." $+ $chr(125)
+  write -c system_role.txt $chr(123) $+ "role": "system","content": "You are a creative and helpful host in an IRC chatroom. You will not constantly ask if there is anything else you can help with. it gets repetitive and annoying to the users. When a chat user talks to you, you can follow the conversation and respond accordingly. When users leave the room, most of the time you say exactly this: Goodbye. Every now and then you will instead say a short but funny quippy goodbye. When a user joins the room you must greet them with something funny. You will keep track of who is currently in the room as users join and part." $+ $chr(125)
 }
 
 alias reset_context_window {
-  write -c $mircdir $+ context_window.txt 
+  write -c context_window.txt 
 }
 
 alias debug_output {  
@@ -76,17 +76,29 @@ alias openai_api_request {
   ;append our latest request to our context window file  
   ; Clean up some of the contents
    var %content = $replace($1-, $chr(1), $null, $chr(34), \ $+ $chr(34))
-  write $mircdir $+ context_window.txt $chr(123) $+ "role": "user", "content": " $+ %content $+ " $+ $chr(125)
+  write context_window.txt $chr(123) $+ "role": "user", "content": " $+ %content $+ " $+ $chr(125)
 
   ; Build the context window string from the system_role.txt and context_window.txt files
-  ; First we read the system_role.txt file and store the content in %context_window
-  var %context_window = $read(system_role.txt,nw,*,1) 
+  ; First we read the system_role.txt file and store the content in &context_window
+  ; original: var %context_window = $read(system_role.txt,nw,*,1) 
+
+  ; Initialize the &context_window_data binary variable and start it with a left square bracket
+  bset -t &context_window_data -1 $chr(91)
+
+  fopen system_role_file system_role.txt
+  fseek -l system_role_file 1
+  bset -t &context_window_data -1 $fread(system_role_file)
+  fclose system_role_file
+  
+
+  ;echo -a $bvar(&context_window_data,1,$bvar(&context_window_data,0)).text
+
 
   ; Next we verify the number of lines in the context window file.
   var %sizeof_context_window $lines("context_window.txt")
 
-  ; If there are 50 or more lines we only load the last 50 lines and append them to the %context_window variable
-  ; Otherwise we load all the lines in the file and append them to the %context_window variable
+  ; If there are %context_window_size or more lines we only load the last %context_window_size lines and append them to the &context_window binary variable
+  ; Otherwise we load all the lines in the file and append them to the &context_window binary variable
 
   if (%sizeof_context_window >= %context_window_size) {
     var %i = $calc(%sizeof_context_window - (%context_window_size - 1))
@@ -96,13 +108,30 @@ alias openai_api_request {
     var %i = 1
   } 
 
+  ;ORIGINAL LOOP WAS HERE BEFORE
+  fopen context_window_file context_window.txt
+
   while (%i <= %sizeof_context_window) {
-    var %context_window %context_window $+ , $+ $read("context_window.txt", nw,*,%i)
-    inc %i
+  fseek -l context_window_file %i  
+  if (%1 != %sizeof_context_window) bset -t &context_window_data -1 $chr(44)
+  bset -t &context_window_data -1 $fread(context_window_file)
+  inc %i
   }
 
+  fclose context_window_file
+
+  ;echo -a $bvar(&context_window_data,1,$bvar(&context_window_data,0)).text
+
+  ; Append a right square bracket to the &context_window binary variable
+  bset -t &context_window_data -1 $chr(93)
+
+  ; Append a comma to the &context_window binary variable
+  bset -t &context_window_data -1 $chr(44)
+
+ ; debug_output 4 context window set to: $bvar(&context_window_data,1,$bvar(&context_window_data,0)).text
+
   ;enclose the %context_window in square brackets
-  %context_window = $chr(91) $+ %context_window $+ $chr(93)
+  ; %context_window = $chr(91) $+ %context_window $+ $chr(93)
   ; Define the headers in a &binvar named &headers
   bset -t &headers -1 Content-Type: application/json $+ $crlf
   bset -t &headers -1 Authorization: Bearer $envvar(OPENAI_API_KEY) $+ $crlf
@@ -116,10 +145,10 @@ alias openai_api_request {
   ; Define the JSON body in a &binvar
   bset -t &body 1 $chr(123)
   bset -t &body -1 "model": "gpt-4o-mini",
-  bset -t &body -1 "messages": %context_window $+ ,
+  bset -t &body -1 "messages": $bvar(&context_window_data,1,$bvar(&context_window_data,0)).text
   bset -t &body -1 "max_tokens": 1000,
   bset -t &body -1 "top_p": 1,
-  bset -t &body -1 "frequency_penalty": 2,
+  bset -t &body -1 "frequency_penalty": 0.1,
   bset -t &body -1 "presence_penalty": 1.0,
   bset -t &body -1 "temperature": 0.7
   bset -t &body -1 $chr(125)
@@ -150,7 +179,7 @@ alias onRequestComplete {
   debug_output 53 OpenAI API Extracted Response ->1 %response_message
 
   ; Add the assistant's response to the context_window file
-  write $mircdir $+ context_window.txt $chr(123) $+ "role": "assistant", "content": " $+ $replace(%response_message, ", \") $+ " $+ $chr(125)
+  write context_window.txt $chr(123) $+ "role": "assistant", "content": " $+ $replace(%response_message, ", \") $+ " $+ $chr(125)
 
   ; Send the response message to the chatroom
   if ($sock(sockbot)) {
